@@ -1,6 +1,6 @@
-import fs from 'fs';
-import path from 'path';
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import fs from "fs";
+import path from "path";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 /** A4 portrait en points (72 dpi) */
 const PAGE_W = 595.28;
@@ -9,20 +9,20 @@ const COLS = 2;
 const ROWS = 6;
 
 const DEFAULT_LAYOUT = {
-  photo: { x: 0.05, y: 0.14, w: 0.3, h: 0.55 },
-  nom: { x: 0.38, y: 0.72, size: 11 },
-  prenoms: { x: 0.38, y: 0.6, size: 11 },
-  distrika: { x: 0.38, y: 0.48, size: 9 },
-  eglizy: { x: 0.38, y: 0.38, size: 9 },
-  tokim: { x: 0.38, y: 0.28, size: 8 },
-  matricule: { x: 0.38, y: 0.14, size: 10 },
+  photo: { x: 0.05, y: 0.1, w: 0.3, h: 0.62 },
+  nom: { x: 0.5, y: 0.82, size: 11, align: "center" },
+  prenoms: { x: 0.5, y: 0.74, size: 11, align: "center" },
+  distrika: { x: 0.38, y: 0.62, size: 9 },
+  eglizy: { x: 0.38, y: 0.52, size: 9 },
+  tokim: { x: 0.38, y: 0.36, size: 9 },
+  matricule: { x: 0.38, y: 0.18, size: 10 },
 };
 
 async function loadImageBytes(photoLien) {
   if (!photoLien) return null;
   const s = String(photoLien).trim();
   if (!s) return null;
-  if (s.startsWith('http://') || s.startsWith('https://')) {
+  if (s.startsWith("http://") || s.startsWith("https://")) {
     const res = await fetch(s);
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());
@@ -34,6 +34,16 @@ async function loadImageBytes(photoLien) {
 
 function mergeLayout(dbLayout) {
   return { ...DEFAULT_LAYOUT, ...(dbLayout || {}) };
+}
+
+function formatShortDate(value) {
+  if (value == null) return "";
+  const d = new Date(String(value).trim());
+  if (Number.isNaN(d.getTime())) return String(value).trim();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}-${mm}-${yy}`;
 }
 
 /**
@@ -127,33 +137,67 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
       }
 
       const lines = [
-        { key: 'nom', label: 'Nom', bold: true },
-        { key: 'prenoms', label: 'Prénoms', bold: true },
-        { key: 'distrika', label: 'Distrika' },
-        { key: 'eglizy', label: 'Eglizy' },
+        { key: "nom", noLabel: true, bold: true },
+        { key: "prenoms", noLabel: true, bold: true },
+        { key: "distrika", label: "Distrika" },
+        { key: "eglizy", label: "Eglizy" },
         {
-          key: 'tokim_panompoana',
-          label: 'Tokim-panompoana',
-          fmt: (v) => (v ? String(v).slice(0, 10) : ''),
+          key: "tokim_panompoana",
+          label: "Tokim-panompoana",
+          fmt: formatShortDate,
         },
-        { key: 'matricule', label: 'Matricule', bold: true },
+        { key: "matricule", label: "Matricule" },
       ];
 
       for (const ln of lines) {
-        const field = lay[ln.key === 'tokim_panompoana' ? 'tokim' : ln.key];
+        const field = lay[ln.key === "tokim_panompoana" ? "tokim" : ln.key];
         if (!field) continue;
-        const tx = ox + field.x * cellW;
-        const ty = oy + field.y * cellH;
         const size = field.size || 10;
-        const val =
-          ln.fmt ? ln.fmt(m[ln.key]) : String(m[ln.key] == null ? '' : m[ln.key]);
-        const text = `${ln.label}: ${val}`;
-        page.drawText(text, {
+        const rawValue = m[ln.key];
+        const val = ln.fmt
+          ? ln.fmt(rawValue)
+          : String(rawValue == null ? "" : rawValue);
+        const fontToUse = ln.bold ? fontBold : font;
+        let tx = ox + field.x * cellW;
+        if (field.align === "center") {
+          const textWidth = fontToUse.widthOfTextAtSize(val, size);
+          tx = ox + (cellW - textWidth) / 2;
+        }
+        const ty = oy + field.y * cellH;
+
+        if (ln.noLabel) {
+          page.drawText(val, {
+            x: tx,
+            y: ty,
+            size,
+            font: fontToUse,
+            maxWidth: cellW * 0.9,
+            color: rgb(0.1, 0.1, 0.1),
+          });
+          continue;
+        }
+
+        const labelText = `${ln.label}: `;
+        const labelWidth = font.widthOfTextAtSize(labelText, size);
+        page.drawText(labelText, {
           x: tx,
           y: ty,
           size,
-          font: ln.bold ? fontBold : font,
-          maxWidth: cellW * 0.58,
+          font: fontToUse,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+        page.drawLine({
+          start: { x: tx, y: ty - 1 },
+          end: { x: tx + labelWidth, y: ty - 1 },
+          thickness: 0.5,
+          color: rgb(0.1, 0.1, 0.1),
+        });
+        page.drawText(val, {
+          x: tx + labelWidth,
+          y: ty,
+          size,
+          font: fontToUse,
+          maxWidth: cellW * 0.58 - labelWidth,
           color: rgb(0.1, 0.1, 0.1),
         });
       }

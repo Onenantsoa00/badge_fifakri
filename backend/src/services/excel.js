@@ -1,21 +1,27 @@
-import xlsx from 'xlsx';
+import xlsx from "xlsx";
 
 const HEADER_ALIASES = {
-  nom: ['nom', 'name'],
-  prenoms: ['prénoms', 'prenoms', 'prenom', 'prénom'],
-  distrika: ['distrika', 'district'],
-  eglizy: ['eglizy', 'église', 'eglise', 'eglise '],
-  tokim: ['tokim-panompoana', 'tokim_panompoana', 'tokim', 'date ordination', 'ordination'],
-  matricule: ['matricule', 'matricule '],
-  photo: ['photo', 'photo_lien', 'lien', 'image', 'url photo', 'chemin photo'],
+  nom: ["nom", "name"],
+  prenoms: ["prénoms", "prenoms", "prenom", "prénom"],
+  distrika: ["distrika", "district"],
+  eglizy: ["eglizy", "église", "eglise", "eglise "],
+  tokim: [
+    "tokim-panompoana",
+    "tokim_panompoana",
+    "tokim",
+    "date ordination",
+    "ordination",
+  ],
+  matricule: ["matricule", "matricule "],
+  photo: ["photo", "photo_lien", "lien", "image", "url photo", "chemin photo"],
 };
 
 function norm(s) {
-  return String(s || '')
+  return String(s || "")
     .trim()
     .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function mapHeader(cell) {
@@ -30,10 +36,10 @@ function mapHeader(cell) {
  * @param {Buffer} buffer
  */
 export function parseMembresExcel(buffer) {
-  const wb = xlsx.read(buffer, { type: 'buffer', cellDates: true, raw: false });
+  const wb = xlsx.read(buffer, { type: "buffer", cellDates: true, raw: false });
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
-  const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  const rows = xlsx.utils.sheet_to_json(sheet, { header: 1, defval: "" });
   if (!rows.length) return { headers: [], rows: [] };
 
   const headerRow = rows[0].map((c) => String(c).trim());
@@ -43,13 +49,13 @@ export function parseMembresExcel(buffer) {
     if (k) colMap[k] = i;
   });
 
-  const required = ['nom', 'prenoms', 'eglizy', 'tokim'];
+  const required = ["nom", "prenoms", "eglizy", "tokim"];
   const missing = required.filter((k) => colMap[k] === undefined);
   if (missing.length) {
     const err = new Error(
-      `Colonnes manquantes dans l'Excel : ${missing.join(', ')}. En-têtes détectés : ${headerRow.join(' | ')}`
+      `Colonnes manquantes dans l'Excel : ${missing.join(", ")}. En-têtes détectés : ${headerRow.join(" | ")}`,
     );
-    err.code = 'EXCEL_HEADERS';
+    err.code = "EXCEL_HEADERS";
     throw err;
   }
 
@@ -60,28 +66,32 @@ export function parseMembresExcel(buffer) {
 
     const get = (k) => {
       const idx = colMap[k];
-      if (idx === undefined) return '';
+      if (idx === undefined) return "";
       return line[idx];
     };
 
-    let tokim = get('tokim');
+    let tokim = get("tokim");
     if (tokim instanceof Date) {
       tokim = tokim.toISOString().slice(0, 10);
-    } else if (typeof tokim === 'number' && tokim > 20000) {
+    } else if (typeof tokim === "number" && tokim > 20000) {
       const epoch = new Date(Math.round((tokim - 25569) * 86400 * 1000));
       tokim = epoch.toISOString().slice(0, 10);
     } else {
-      tokim = String(tokim || '').trim();
+      tokim = String(tokim || "").trim();
+      const parsedDate = new Date(tokim);
+      if (tokim && !Number.isNaN(parsedDate.getTime())) {
+        tokim = parsedDate.toISOString().slice(0, 10);
+      }
     }
 
     out.push({
-      nom: String(get('nom') || '').trim(),
-      prenoms: String(get('prenoms') || '').trim(),
-      distrika: String(get('distrika') || '').trim(),
-      eglizy: String(get('eglizy') || '').trim(),
+      nom: String(get("nom") || "").trim(),
+      prenoms: String(get("prenoms") || "").trim(),
+      distrika: String(get("distrika") || "").trim(),
+      eglizy: String(get("eglizy") || "").trim(),
       tokim_panompoana: tokim,
-      matricule_manual: String(get('matricule') || '').trim() || null,
-      photo_lien: String(get('photo') || '').trim() || null,
+      matricule_manual: String(get("matricule") || "").trim() || null,
+      photo_lien: String(get("photo") || "").trim() || null,
     });
   }
 
