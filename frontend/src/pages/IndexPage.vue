@@ -28,6 +28,10 @@
                 new Date(activeTpl.uploaded_at).toLocaleString("fr-FR")
               }})
             </div>
+            <div class="q-mt-xs text-caption text-grey-7">
+              PDF A4 : 2×6 (12 badges), proportions allongées. Photos
+              Excel/ODS en cercle dans le rond bleu.
+            </div>
           </q-card-section>
         </q-card>
       </div>

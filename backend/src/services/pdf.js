@@ -1,22 +1,95 @@
 import fs from "fs";
 import path from "path";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  popGraphicsState,
+  pushGraphicsState,
+  moveTo,
+  lineTo,
+  closePath,
+  clip,
+  endPath,
+  rgb,
+} from "pdf-lib";
 
-/** A4 portrait en points (72 dpi) */
+/** A4 portrait (72 dpi) */
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const COLS = 2;
 const ROWS = 6;
 
+/** Espacement minimal entre badges (haut/bas) */
+const ROW_GAP = 0;
+
+/**
+ * Proportions badge : largeur 10,5 cm / longueur 7,95 cm (+3 cm vs 4,95 cm)
+ * Ajusté pour tenir sur A4 en 2×6
+ */
+const BADGE_WH_RATIO = 140 / 79.5;
+
+const PHOTO_CLIP_INSET = 0;
+
 const DEFAULT_LAYOUT = {
-  photo: { x: 0.05, y: 0.1, w: 0.3, h: 0.62 },
-  nom: { x: 0.5, y: 0.82, size: 11, align: "center" },
-  prenoms: { x: 0.5, y: 0.74, size: 11, align: "center" },
-  distrika: { x: 0.38, y: 0.62, size: 9 },
-  eglizy: { x: 0.38, y: 0.52, size: 9 },
-  tokim: { x: 0.38, y: 0.36, size: 9 },
-  matricule: { x: 0.38, y: 0.18, size: 10 },
+  photo: { cx: 0.237, cy: 0.495, r: 0.28 },
+  nom: {
+    x: 0.2,
+    y: 0.84,
+    size: 10,
+    align: "center",
+    regionX: 0.34,
+    regionW: 0.64,
+  },
+  prenoms: {
+    x: 0.2,
+    y: 0.76,
+    size: 10,
+    align: "center",
+    regionX: 0.34,
+    regionW: 0.64,
+  },
+  distrika: { x: 0.4, y: 0.61, size: 9 },
+  eglizy: { x: 0.4, y: 0.52, size: 9 },
+  tokim: { x: 0.4, y: 0.43, size: 9 },
+  matricule: { x: 0.4, y: 0.34, size: 8.3 },
 };
+
+function computeBadgeSize() {
+  let badgeH = (PAGE_H - (ROWS - 1) * ROW_GAP) / ROWS;
+  let badgeW = badgeH * BADGE_WH_RATIO;
+  const colW = PAGE_W / COLS;
+  if (badgeW > colW) {
+    badgeW = colW;
+    badgeH = badgeW / BADGE_WH_RATIO;
+  }
+  return { badgeW, badgeH, colW };
+}
+
+function circleSvgPath(cx, cy, r) {
+  return `M ${cx},${cy - r} A ${r} ${r} 0 0 1 ${cx},${cy + r} A ${r} ${r} 0 0 1 ${cx},${cy - r} Z`;
+}
+
+function resolvePhotoCircle(ox, oy, badgeW, badgeH, pr) {
+  const unit = Math.min(badgeW, badgeH);
+  let cx;
+  let cy;
+  let r;
+  if (pr.cx != null && pr.cy != null && pr.r != null) {
+    cx = ox + pr.cx * badgeW;
+    cy = oy + pr.cy * badgeH;
+    r = pr.r * unit * (1 - PHOTO_CLIP_INSET);
+  } else {
+    const px = ox + (pr.x || 0) * badgeW;
+    const py = oy + (pr.y || 0) * badgeH;
+    const pw = (pr.w || 0.28) * badgeW;
+    const ph = (pr.h || 0.28) * badgeH;
+    const side = Math.min(pw, ph);
+    cx = px + pw / 2;
+    cy = py + ph / 2;
+    r = (side / 2) * (1 - PHOTO_CLIP_INSET);
+  }
+  return { cx, cy, r };
+}
 
 async function loadImageBytes(photoLien) {
   if (!photoLien) return null;
@@ -72,9 +145,9 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
   }
 
   const lay = mergeLayout(layout);
+  const { badgeW, badgeH, colW } = computeBadgeSize();
   const perPage = COLS * ROWS;
-  const cellW = PAGE_W / COLS;
-  const cellH = PAGE_H / ROWS;
+  const slotH = badgeH + ROW_GAP;
 
   for (let p = 0; p < membres.length; p += perPage) {
     const page = pdf.addPage([PAGE_W, PAGE_H]);
@@ -83,24 +156,24 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
     for (let i = 0; i < chunk.length; i++) {
       const col = i < ROWS ? 0 : 1;
       const rowFromTop = i < ROWS ? i : i - ROWS;
-      const ox = col * cellW;
-      const oy = PAGE_H - (rowFromTop + 1) * cellH;
+      const ox = col * colW + (colW - badgeW) / 2;
+      const oy = PAGE_H - (rowFromTop + 1) * slotH;
       const m = chunk[i];
 
       if (tplImage) {
         const ir = tplImage.scale(1);
-        const scale = Math.min(cellW / ir.width, cellH / ir.height);
+        const scale = Math.min(badgeW / ir.width, badgeH / ir.height);
         const dw = ir.width * scale;
         const dh = ir.height * scale;
-        const dx = ox + (cellW - dw) / 2;
-        const dy = oy + (cellH - dh) / 2;
+        const dx = ox + (badgeW - dw) / 2;
+        const dy = oy + (badgeH - dh) / 2;
         page.drawImage(tplImage, { x: dx, y: dy, width: dw, height: dh });
       } else {
         page.drawRectangle({
-          x: ox + 4,
-          y: oy + 4,
-          width: cellW - 8,
-          height: cellH - 8,
+          x: ox + 2,
+          y: oy + 2,
+          width: badgeW - 4,
+          height: badgeH - 4,
           borderColor: rgb(0.75, 0.75, 0.75),
           borderWidth: 1,
         });
@@ -119,20 +192,64 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
           }
         }
         if (img) {
-          const pr = lay.photo;
-          const px = ox + pr.x * cellW;
-          const py = oy + pr.y * cellH;
-          const pw = pr.w * cellW;
-          const ph = pr.h * cellH;
-          const sc = Math.min(pw / img.width, ph / img.height);
-          const iw = img.width * sc;
-          const ih = img.height * sc;
+          const { cx, cy, r } = resolvePhotoCircle(
+            ox,
+            oy,
+            badgeW,
+            badgeH,
+            lay.photo,
+          );
+
+          const diameter = r * 2;
+
+          // agrandissement image
+          const scale = Math.max(diameter / img.width, diameter / img.height);
+
+          const imgW = img.width * scale;
+          const imgH = img.height * scale;
+
+          const imgX = cx - imgW / 2;
+          const imgY = cy - imgH / 2;
+
+          // sauvegarde état graphique
+          page.pushOperators(pushGraphicsState());
+
+          // création vrai masque cercle
+          const steps = 40;
+          const points = [];
+
+          for (let i = 0; i <= steps; i++) {
+            const angle = (Math.PI * 2 * i) / steps;
+            points.push({
+              x: cx + r * Math.cos(angle),
+              y: cy + r * Math.sin(angle),
+            });
+          }
+
+          const ops = [];
+
+          ops.push(moveTo(points[0].x, points[0].y));
+
+          for (let i = 1; i < points.length; i++) {
+            ops.push(lineTo(points[i].x, points[i].y));
+          }
+
+          ops.push(closePath());
+          ops.push(clip());
+          ops.push(endPath());
+
+          page.pushOperators(...ops);
+
+          // dessin image
           page.drawImage(img, {
-            x: px,
-            y: py + (ph - ih) / 2,
-            width: iw,
-            height: ih,
+            x: imgX,
+            y: imgY,
+            width: imgW,
+            height: imgH,
           });
+
+          // restauration
+          page.pushOperators(popGraphicsState());
         }
       }
 
@@ -158,12 +275,16 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
           ? ln.fmt(rawValue)
           : String(rawValue == null ? "" : rawValue);
         const fontToUse = ln.bold ? fontBold : font;
-        let tx = ox + field.x * cellW;
+        let tx = ox + field.x * badgeW;
         if (field.align === "center") {
           const textWidth = fontToUse.widthOfTextAtSize(val, size);
-          tx = ox + (cellW - textWidth) / 2;
+          const regionX =
+            field.regionX != null ? ox + field.regionX * badgeW : ox;
+          const regionW =
+            field.regionW != null ? field.regionW * badgeW : badgeW;
+          tx = regionX + (regionW - textWidth) / 2;
         }
-        const ty = oy + field.y * cellH;
+        const ty = oy + field.y * badgeH;
 
         if (ln.noLabel) {
           page.drawText(val, {
@@ -171,7 +292,7 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
             y: ty,
             size,
             font: fontToUse,
-            maxWidth: cellW * 0.9,
+            maxWidth: badgeW * 0.92,
             color: rgb(0.1, 0.1, 0.1),
           });
           continue;
@@ -197,7 +318,7 @@ export async function buildBadgesPdf({ membres, templatePath, layout }) {
           y: ty,
           size,
           font: fontToUse,
-          maxWidth: cellW * 0.58 - labelWidth,
+          maxWidth: badgeW * 0.56 - labelWidth,
           color: rgb(0.1, 0.1, 0.1),
         });
       }

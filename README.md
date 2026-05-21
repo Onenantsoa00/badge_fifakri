@@ -64,7 +64,7 @@ Les styles (ordre des segments) sont configurables dans l’écran **Styles matr
 
 ## PDF
 
-A4 portrait, **12 badges par page** : 6 lignes dans la colonne de gauche, puis 6 lignes dans la colonne de droite. Autant de pages que nécessaire.
+A4 portrait, **12 badges par page** : 2 colonnes × 6 lignes (6 à gauche puis 6 à droite). Proportions badge allongées (+3 cm de longueur) adaptées à la feuille (~6,5 × 4,9 cm par badge, espacement minimal). Photos Excel/ODS recadrées en cercle dans le rond bleu.
 
 ## API (résumé)
 
