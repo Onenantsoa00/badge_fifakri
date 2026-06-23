@@ -100,8 +100,40 @@ async function loadImageBytes(photoLien) {
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());
   }
-  const abs = path.isAbsolute(s) ? s : path.resolve(s);
-  if (fs.existsSync(abs)) return fs.readFileSync(abs);
+  // essayer plusieurs emplacements possibles pour être résilient en dev/production
+  const candidates = [];
+  if (path.isAbsolute(s)) candidates.push(s);
+  // chemin relatif au CWD
+  candidates.push(path.resolve(s));
+  // si le projet a un dossier `backend`, tenter relatif à ce dossier (déployé depuis la racine)
+  candidates.push(path.resolve(process.cwd(), "backend", s));
+  // si UPLOAD_DIR est configuré, tenter l'emplacement dans UPLOAD_DIR
+  if (process.env.UPLOAD_DIR) {
+    const rel = s.replace(/^uploads\//, "");
+    candidates.push(path.resolve(process.env.UPLOAD_DIR, rel));
+    candidates.push(path.resolve(process.env.UPLOAD_DIR, s));
+  }
+
+  for (const c of candidates) {
+    try {
+      if (c && fs.existsSync(c)) return fs.readFileSync(c);
+    } catch (e) {
+      // ignore and try next
+    }
+  }
+
+  // as a last resort, try fetching as URL relative to server (useful if stored path is "uploads/..")
+  try {
+    const serverUrl = process.env.SERVER_BASE_URL;
+    if (serverUrl && !s.startsWith("/")) {
+      const url = `${serverUrl.replace(/\/$/, "")}/${s.replace(/^\//, "")}`;
+      const res2 = await fetch(url);
+      if (res2.ok) return Buffer.from(await res2.arrayBuffer());
+    }
+  } catch (e) {
+    // ignore
+  }
+
   return null;
 }
 
