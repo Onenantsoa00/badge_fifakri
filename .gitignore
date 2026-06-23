@@ -1,6 +1,20 @@
+# Dependencies
 node_modules/
-uploads/
+
+# Build
 dist/
+
+# Environment
 .env
+.env.local
+.env.production
+
+# Uploads
+backend/uploads/
+
+# Logs
 *.log
+
+# OS
 .DS_Store
+Thumbs.db
