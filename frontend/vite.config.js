@@ -1,9 +1,11 @@
-import { fileURLToPath } from 'node:url';
-import { defineConfig } from 'vite';
-import vue from '@vitejs/plugin-vue';
-import { quasar, transformAssetUrls } from '@quasar/vite-plugin';
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
+import { quasar, transformAssetUrls } from "@quasar/vite-plugin";
 
-const quasarSass = fileURLToPath(new URL('./src/quasar-variables.sass', import.meta.url));
+const quasarSass = fileURLToPath(
+  new URL("./src/quasar-variables.sass", import.meta.url),
+);
 
 export default defineConfig({
   plugins: [
@@ -13,8 +15,8 @@ export default defineConfig({
   server: {
     port: 9000,
     proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
+      "/api": {
+        target: process.env.VITE_API_URL || "http://localhost:3001",
         changeOrigin: true,
       },
     },

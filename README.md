@@ -44,15 +44,15 @@ L’UI est sur `http://localhost:9000` ; les appels `/api` sont proxifiés vers 
 
 Première ligne : en-têtes. Colonnes reconnues (insensible à la casse / accents) :
 
-| Champ | Exemples d’en-tête |
-|--------|-------------------|
-| Nom | Nom |
-| Prénoms | Prénoms |
-| Eglizy | Eglizy (nom ou code présent dans la table **Églises**) |
-| Tokim-panompoana | Tokim-panompoana |
-| Distrika | Distrika |
-| Matricule | Matricule (si rempli : utilisé tel quel, doit être unique) |
-| Photo | Photo, lien, URL… |
+| Champ            | Exemples d’en-tête                                         |
+| ---------------- | ---------------------------------------------------------- |
+| Nom              | Nom                                                        |
+| Prénoms          | Prénoms                                                    |
+| Eglizy           | Eglizy (nom ou code présent dans la table **Églises**)     |
+| Tokim-panompoana | Tokim-panompoana                                           |
+| Distrika         | Distrika                                                   |
+| Matricule        | Matricule (si rempli : utilisé tel quel, doit être unique) |
+| Photo            | Photo, lien, URL…                                          |
 
 ## Matricule automatique
 
@@ -68,16 +68,31 @@ A4 portrait, **12 badges par page** : 2 colonnes × 6 lignes (6 à gauche puis 6
 
 ## API (résumé)
 
-| Méthode | Chemin | Rôle |
-|---------|--------|------|
-| GET | `/api/eglises` | Liste des églises / codes |
-| POST | `/api/eglises` | Ajouter |
-| GET | `/api/matricule-styles` | Styles de matricule |
-| POST | `/api/matricule-styles` | Créer un style |
-| GET | `/api/templates/active` | Modèle actif |
-| POST | `/api/templates` | multipart `file` — upload modèle |
-| GET | `/api/membres` | Liste membres |
-| POST | `/api/membres/import-excel` | multipart `file`, option `matricule_style_id` |
-| PATCH | `/api/membres/:id` | Modifier champs dont `matricule` |
-| POST | `/api/badges/pdf` | JSON `{ "ids": [] }` ou `{}` pour tous → PDF |
+| Méthode | Chemin                      | Rôle                                          |
+| ------- | --------------------------- | --------------------------------------------- |
+| GET     | `/api/eglises`              | Liste des églises / codes                     |
+| POST    | `/api/eglises`              | Ajouter                                       |
+| GET     | `/api/matricule-styles`     | Styles de matricule                           |
+| POST    | `/api/matricule-styles`     | Créer un style                                |
+| GET     | `/api/templates/active`     | Modèle actif                                  |
+| POST    | `/api/templates`            | multipart `file` — upload modèle              |
+| GET     | `/api/membres`              | Liste membres                                 |
+| POST    | `/api/membres/import-excel` | multipart `file`, option `matricule_style_id` |
+| PATCH   | `/api/membres/:id`          | Modifier champs dont `matricule`              |
+| POST    | `/api/badges/pdf`           | JSON `{ "ids": [] }` ou `{}` pour tous → PDF  |
+
 # badge_fifakri
+
+# en développement
+
+git checkout dev
+
+git add .
+git commit -m "nouvelle fonctionnalité"
+git push origin dev
+
+# Validation si correcte :
+
+git checkout main
+git merge dev
+git push origin main
