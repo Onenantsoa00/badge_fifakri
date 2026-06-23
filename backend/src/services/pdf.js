@@ -30,6 +30,9 @@ const BADGE_WH_RATIO = 140 / 79.5;
 
 const PHOTO_CLIP_INSET = 0;
 
+const UPLOAD_ROOT =
+  process.env.UPLOAD_DIR || path.join(process.cwd(), "uploads");
+
 const DEFAULT_LAYOUT = {
   photo: { cx: 0.237, cy: 0.495, r: 0.28 },
   nom: {
@@ -95,13 +98,42 @@ async function loadImageBytes(photoLien) {
   if (!photoLien) return null;
   const s = String(photoLien).trim();
   if (!s) return null;
-  if (s.startsWith("http://") || s.startsWith("https://")) {
-    const res = await fetch(s);
-    if (!res.ok) return null;
-    return Buffer.from(await res.arrayBuffer());
+  // data URI (base64)
+  if (s.startsWith("data:image/")) {
+    const idx = s.indexOf("base64,");
+    if (idx === -1) return null;
+    const b64 = s.slice(idx + 7);
+    return Buffer.from(b64, "base64");
   }
+
+  // remote URL
+  if (
+    s.startsWith("http://") ||
+    s.startsWith("https://") ||
+    s.startsWith("//")
+  ) {
+    const url = s.startsWith("//") ? `https:${s}` : s;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return Buffer.from(await res.arrayBuffer());
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // try as absolute or resolved path
   const abs = path.isAbsolute(s) ? s : path.resolve(s);
   if (fs.existsSync(abs)) return fs.readFileSync(abs);
+
+  // try relative to upload directory (useful in production)
+  const candidate = path.resolve(UPLOAD_ROOT, s);
+  if (fs.existsSync(candidate)) return fs.readFileSync(candidate);
+
+  // fallback: try resolving relative to process.cwd() once more with a join
+  const candidate2 = path.resolve(process.cwd(), s);
+  if (fs.existsSync(candidate2)) return fs.readFileSync(candidate2);
+
   return null;
 }
 
