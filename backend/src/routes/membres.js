@@ -3,6 +3,7 @@ import multer from "multer";
 import { query } from "../db.js";
 import { parseMembresExcel } from "../services/excel.js";
 import { computeMatriculeForMember } from "../services/matricule.js";
+import { resolvePhotoLien } from "../services/photos.js";
 
 export const membresRouter = Router();
 
@@ -83,6 +84,14 @@ membresRouter.post(
           }
         }
 
+        const photoLien = resolvePhotoLien(r.photo_lien);
+        if (r.photo_lien && !photoLien) {
+          errors.push({
+            line,
+            error: `Photo introuvable : "${r.photo_lien}". Uploadez d'abord les images (étape Photos), puis mettez le nom du fichier dans Excel.`,
+          });
+        }
+
         try {
           const { rows } = await query(
             `INSERT INTO membres (nom, prenoms, eglizy, distrika, tokim_panompoana, matricule, photo_lien)
@@ -95,7 +104,7 @@ membresRouter.post(
               r.distrika || null,
               r.tokim_panompoana,
               matricule,
-              r.photo_lien,
+              photoLien,
             ],
           );
           inserted.push(rows[0]);

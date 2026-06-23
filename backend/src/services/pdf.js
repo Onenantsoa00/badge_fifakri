@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { getUploadRoot, resolvePhotoLien } from "./photos.js";
 import {
   PDFDocument,
   StandardFonts,
@@ -93,44 +94,44 @@ function resolvePhotoCircle(ox, oy, badgeW, badgeH, pr) {
 
 async function loadImageBytes(photoLien) {
   if (!photoLien) return null;
-  const s = String(photoLien).trim();
-  if (!s) return null;
-  if (s.startsWith("http://") || s.startsWith("https://")) {
-    const res = await fetch(s);
+  const resolved = resolvePhotoLien(photoLien) || String(photoLien).trim();
+  if (!resolved) return null;
+
+  if (resolved.startsWith("http://") || resolved.startsWith("https://")) {
+    const res = await fetch(resolved);
     if (!res.ok) return null;
     return Buffer.from(await res.arrayBuffer());
   }
-  // essayer plusieurs emplacements possibles pour être résilient en dev/production
+
+  const uploadRoot = getUploadRoot();
   const candidates = [];
-  if (path.isAbsolute(s)) candidates.push(s);
-  // chemin relatif au CWD
-  candidates.push(path.resolve(s));
-  // si le projet a un dossier `backend`, tenter relatif à ce dossier (déployé depuis la racine)
-  candidates.push(path.resolve(process.cwd(), "backend", s));
-  // si UPLOAD_DIR est configuré, tenter l'emplacement dans UPLOAD_DIR
-  if (process.env.UPLOAD_DIR) {
-    const rel = s.replace(/^uploads\//, "");
-    candidates.push(path.resolve(process.env.UPLOAD_DIR, rel));
-    candidates.push(path.resolve(process.env.UPLOAD_DIR, s));
+  if (path.isAbsolute(resolved)) candidates.push(resolved);
+  candidates.push(path.resolve(resolved));
+  candidates.push(path.resolve(process.cwd(), "backend", resolved));
+  if (resolved.startsWith("uploads/")) {
+    candidates.push(path.join(uploadRoot, resolved.replace(/^uploads\//, "")));
+  } else {
+    candidates.push(path.join(uploadRoot, "photos", path.basename(resolved)));
   }
+  candidates.push(path.join(uploadRoot, resolved));
 
   for (const c of candidates) {
     try {
       if (c && fs.existsSync(c)) return fs.readFileSync(c);
-    } catch (e) {
+    } catch {
       // ignore and try next
     }
   }
 
-  // as a last resort, try fetching as URL relative to server (useful if stored path is "uploads/..")
   try {
     const serverUrl = process.env.SERVER_BASE_URL;
-    if (serverUrl && !s.startsWith("/")) {
-      const url = `${serverUrl.replace(/\/$/, "")}/${s.replace(/^\//, "")}`;
+    if (serverUrl) {
+      const rel = resolved.replace(/^\//, "");
+      const url = `${serverUrl.replace(/\/$/, "")}/${rel}`;
       const res2 = await fetch(url);
       if (res2.ok) return Buffer.from(await res2.arrayBuffer());
     }
-  } catch (e) {
+  } catch {
     // ignore
   }
 

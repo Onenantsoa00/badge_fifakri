@@ -38,7 +38,43 @@
       <div class="col-12 col-md-6">
         <q-card flat bordered>
           <q-card-section class="text-subtitle1"
-            >2. Fichier Excel</q-card-section
+            >2. Photos des membres</q-card-section
+          >
+          <q-card-section>
+            <q-file
+              v-model="photoFiles"
+              label="Photos (JPG / PNG) — une ou plusieurs"
+              accept=".jpg,.jpeg,.png,.webp"
+              outlined
+              dense
+              multiple
+              use-chips
+            />
+            <q-btn
+              class="q-mt-sm"
+              color="primary"
+              label="Envoyer les photos sur le serveur"
+              :disable="!photoFiles?.length"
+              :loading="photoLoading"
+              @click="uploadPhotos"
+            />
+            <div v-if="uploadedPhotosCount" class="q-mt-sm text-caption text-positive">
+              {{ uploadedPhotosCount }} photo(s) disponible(s) sur le serveur.
+            </div>
+            <div class="text-caption q-mt-sm text-grey-7">
+              <strong>Étape obligatoire en production.</strong> Uploadez d'abord
+              les photos ici. Dans Excel, colonne <strong>Photo</strong> : mettez
+              le <strong>nom du fichier</strong> (ex. <code>12.jpeg</code>) ou le
+              chemin serveur <code>uploads/photos/12.jpeg</code>. Les chemins
+              locaux (<code>/home/...</code>) ne fonctionnent pas en production.
+            </div>
+          </q-card-section>
+        </q-card>
+      </div>
+      <div class="col-12 col-md-6">
+        <q-card flat bordered>
+          <q-card-section class="text-subtitle1"
+            >3. Fichier Excel</q-card-section
           >
           <q-card-section>
             <q-file
@@ -74,7 +110,7 @@
               Colonnes attendues : <strong>Nom</strong>,
               <strong>Prénoms</strong>, <strong>Eglizy</strong>,
               <strong>Tokim-panompoana</strong>, optionnellement Distrika,
-              Matricule (manuel), Photo / lien image.
+              Matricule (manuel), Photo (nom du fichier uploadé).
             </div>
           </q-card-section>
         </q-card>
@@ -83,7 +119,7 @@
 
     <q-card flat bordered class="q-mt-md">
       <q-card-section class="row items-center justify-between">
-        <div class="text-subtitle1">3. Membres et PDF</div>
+        <div class="text-subtitle1">4. Membres et PDF</div>
         <div class="q-gutter-sm">
           <q-btn
             outline
@@ -118,6 +154,24 @@
         dense
         :loading="listLoading"
       >
+        <template #body-cell-photo_lien="props">
+          <q-td :props="props">
+            <div class="row items-center no-wrap q-gutter-xs">
+              <q-avatar v-if="photoPreviewUrl(props.row.photo_lien)" size="32px">
+                <img :src="photoPreviewUrl(props.row.photo_lien)" alt="" />
+              </q-avatar>
+              <q-icon v-else name="image_not_supported" color="grey-5" size="sm" />
+              <q-btn
+                dense
+                flat
+                round
+                icon="upload"
+                size="sm"
+                @click="openPhotoUpload(props.row)"
+              />
+            </div>
+          </q-td>
+        </template>
         <template #body-cell-matricule="props">
           <q-td :props="props">
             <span>{{ props.row.matricule }}</span>
@@ -133,6 +187,34 @@
         </template>
       </q-table>
     </q-card>
+
+    <q-dialog v-model="photoOpen">
+      <q-card style="min-width: 360px">
+        <q-card-section class="text-h6">Photo du membre</q-card-section>
+        <q-card-section>
+          <div v-if="photoEditRow" class="text-caption q-mb-sm">
+            {{ photoEditRow.nom }} {{ photoEditRow.prenoms }}
+          </div>
+          <q-file
+            v-model="photoEditFile"
+            label="Image (JPG / PNG)"
+            accept=".jpg,.jpeg,.png,.webp"
+            outlined
+            dense
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Annuler" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Enregistrer"
+            :disable="!photoEditFile"
+            :loading="photoEditLoading"
+            @click="saveMemberPhoto"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <q-dialog v-model="editOpen">
       <q-card style="min-width: 320px">
@@ -161,8 +243,11 @@ import client from "../api/client.js";
 
 const tplFile = ref(null);
 const xlsFile = ref(null);
+const photoFiles = ref(null);
 const tplLoading = ref(false);
 const impLoading = ref(false);
+const photoLoading = ref(false);
+const uploadedPhotosCount = ref(0);
 const listLoading = ref(false);
 const pdfLoading = ref(false);
 const membres = ref([]);
@@ -184,6 +269,12 @@ const columns = [
     align: "left",
   },
   { name: "matricule", label: "Matricule", field: "matricule", align: "left" },
+  {
+    name: "photo_lien",
+    label: "Photo",
+    field: "photo_lien",
+    align: "left",
+  },
 ];
 
 const editOpen = ref(false);
@@ -191,6 +282,19 @@ const editRow = ref(null);
 const editMatricule = ref("");
 const saveLoading = ref(false);
 const clearLoading = ref(false);
+
+const photoOpen = ref(false);
+const photoEditRow = ref(null);
+const photoEditFile = ref(null);
+const photoEditLoading = ref(false);
+
+function photoPreviewUrl(photoLien) {
+  if (!photoLien) return null;
+  if (photoLien.startsWith("http://") || photoLien.startsWith("https://")) {
+    return photoLien;
+  }
+  return photoLien.startsWith("/") ? photoLien : `/${photoLien}`;
+}
 
 async function loadStyles() {
   const { data } = await client.get("/api/matricule-styles");
@@ -211,6 +315,60 @@ async function loadMembres() {
     membres.value = data;
   } finally {
     listLoading.value = false;
+  }
+}
+
+async function uploadPhotos() {
+  if (!photoFiles.value?.length) return;
+  photoLoading.value = true;
+  try {
+    const fd = new FormData();
+    for (const f of photoFiles.value) {
+      fd.append("photos", f);
+    }
+    const { data } = await client.post("/api/photos/bulk", fd);
+    uploadedPhotosCount.value += data.uploaded;
+    photoFiles.value = null;
+    Notify.create({
+      type: "positive",
+      message: `${data.uploaded} photo(s) envoyée(s) sur le serveur`,
+    });
+  } catch (e) {
+    Notify.create({
+      type: "negative",
+      message: e.response?.data?.error || e.message,
+    });
+  } finally {
+    photoLoading.value = false;
+  }
+}
+
+function openPhotoUpload(row) {
+  photoEditRow.value = row;
+  photoEditFile.value = null;
+  photoOpen.value = true;
+}
+
+async function saveMemberPhoto() {
+  if (!photoEditRow.value || !photoEditFile.value) return;
+  photoEditLoading.value = true;
+  try {
+    const fd = new FormData();
+    fd.append("photo", photoEditFile.value);
+    const { data } = await client.post("/api/photos", fd);
+    await client.patch(`/api/membres/${photoEditRow.value.id}`, {
+      photo_lien: data.path,
+    });
+    Notify.create({ type: "positive", message: "Photo enregistrée" });
+    photoOpen.value = false;
+    await loadMembres();
+  } catch (e) {
+    Notify.create({
+      type: "negative",
+      message: e.response?.data?.error || e.message,
+    });
+  } finally {
+    photoEditLoading.value = false;
   }
 }
 
