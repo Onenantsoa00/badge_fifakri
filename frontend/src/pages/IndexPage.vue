@@ -29,8 +29,8 @@
               }})
             </div>
             <div class="q-mt-xs text-caption text-grey-7">
-              PDF A4 : 2×6 (12 badges), proportions allongées. Photos
-              Excel/ODS en cercle dans le rond bleu.
+              PDF A4 : 2×6 (12 badges), proportions allongées. Photos Excel/ODS
+              en cercle dans le rond bleu.
             </div>
           </q-card-section>
         </q-card>
@@ -58,20 +58,14 @@
               :loading="photoLoading"
               @click="uploadPhotos"
             />
-            <div v-if="uploadedPhotosCount" class="q-mt-sm text-caption text-positive">
+            <div
+              v-if="uploadedPhotosCount"
+              class="q-mt-sm text-caption text-positive"
+            >
               {{ uploadedPhotosCount }} photo(s) disponible(s) sur le serveur.
             </div>
             <q-separator class="q-my-sm" />
-            <q-banner
-              v-if="!isLocalBackend"
-              dense
-              rounded
-              class="bg-amber-1 text-grey-9 q-mb-sm"
-            >
-              En production (Render), le serveur ne peut pas lire
-              <code>D:\...</code> sur votre PC. Utilisez le sélecteur de fichiers
-              ci-dessus pour envoyer les photos.
-            </q-banner>
+
             <div v-if="isLocalBackend" class="text-caption text-grey-8 q-mb-xs">
               Ou importer depuis un dossier local (backend lancé sur ce PC) :
             </div>
@@ -95,9 +89,10 @@
               />
             </template>
             <div class="text-caption q-mt-sm text-grey-7">
-              <strong>Étape obligatoire.</strong> Envoyez d'abord toutes les photos,
-              puis importez l'Excel. La colonne <strong>Photo</strong> accepte le
-              nom du fichier (<code>12.jpg</code>) ou un chemin Windows
+              <strong>Étape obligatoire.</strong> Envoyez d'abord toutes les
+              photos, puis importez l'Excel. La colonne
+              <strong>Photo</strong> accepte le nom du fichier
+              (<code>12.jpg</code>) ou un chemin Windows
               (<code>D:\dossier\12.jpg</code>) — la correspondance se fait
               automatiquement sur le nom du fichier.
             </div>
@@ -143,7 +138,8 @@
               Colonnes attendues : <strong>Nom</strong>,
               <strong>Prénoms</strong>, <strong>Eglizy</strong>,
               <strong>Tokim-panompoana</strong>, optionnellement Distrika,
-              Matricule (manuel), Photo (nom du fichier, ex. <code>12.jpg</code>).
+              Matricule (manuel), Photo (nom du fichier, ex.
+              <code>12.jpg</code>).
             </div>
           </q-card-section>
         </q-card>
@@ -190,10 +186,18 @@
         <template #body-cell-photo_lien="props">
           <q-td :props="props">
             <div class="row items-center no-wrap q-gutter-xs">
-              <q-avatar v-if="photoPreviewUrl(props.row.photo_lien)" size="32px">
+              <q-avatar
+                v-if="photoPreviewUrl(props.row.photo_lien)"
+                size="32px"
+              >
                 <img :src="photoPreviewUrl(props.row.photo_lien)" alt="" />
               </q-avatar>
-              <q-icon v-else name="image_not_supported" color="grey-5" size="sm" />
+              <q-icon
+                v-else
+                name="image_not_supported"
+                color="grey-5"
+                size="sm"
+              />
               <q-btn
                 dense
                 flat
