@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { uploadPhoto } from "../middleware/uploadPhotos.js";
+import { importPhotosFromFolder } from "../services/photos.js";
 
 export const photosRouter = Router();
 
@@ -23,4 +24,24 @@ photosRouter.post("/bulk", uploadPhoto.array("photos", 500), async (req, res) =>
   }
   const photos = req.files.map((f) => photoResponse(req, f));
   return res.json({ uploaded: photos.length, photos });
+});
+
+photosRouter.post("/import-folder", async (req, res) => {
+  const folderPath = String(req.body?.folderPath || "").trim();
+  if (!folderPath) {
+    return res.status(400).json({ error: "Chemin du dossier requis (folderPath)" });
+  }
+  try {
+    const result = importPhotosFromFolder(folderPath);
+    return res.json({
+      uploaded: result.imported,
+      skipped: result.skipped,
+      photos: result.photos,
+    });
+  } catch (e) {
+    if (e.code === "FOLDER_NOT_FOUND" || e.code === "NOT_A_DIRECTORY") {
+      return res.status(400).json({ error: e.message });
+    }
+    throw e;
+  }
 });

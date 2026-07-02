@@ -61,12 +61,34 @@
             <div v-if="uploadedPhotosCount" class="q-mt-sm text-caption text-positive">
               {{ uploadedPhotosCount }} photo(s) disponible(s) sur le serveur.
             </div>
+            <q-separator class="q-my-sm" />
+            <div class="text-caption text-grey-8 q-mb-xs">
+              Ou importer depuis un dossier local (Windows / Linux) :
+            </div>
+            <q-input
+              v-model="photoFolderPath"
+              label="Chemin du dossier photos"
+              placeholder="D:\badge_fifakri\sary ou /home/user/photos"
+              outlined
+              dense
+              hint="Copie toutes les images du dossier vers le serveur"
+            />
+            <q-btn
+              class="q-mt-sm"
+              outline
+              color="primary"
+              label="Importer depuis le dossier"
+              :disable="!photoFolderPath?.trim()"
+              :loading="folderLoading"
+              @click="importPhotosFromFolder"
+            />
             <div class="text-caption q-mt-sm text-grey-7">
               <strong>Étape obligatoire en production.</strong> Uploadez d'abord
-              les photos ici. Dans Excel, colonne <strong>Photo</strong> : mettez
-              le <strong>nom du fichier</strong> (ex. <code>12.jpeg</code>) ou le
-              chemin serveur <code>uploads/photos/12.jpeg</code>. Les chemins
-              locaux (<code>/home/...</code>) ne fonctionnent pas en production.
+              les photos ici (fichiers ou dossier). Dans Excel, colonne
+              <strong>Photo</strong> : mettez le <strong>nom du fichier</strong>
+              (ex. <code>12.jpeg</code>), le chemin serveur
+              <code>uploads/photos/12.jpeg</code>, ou le chemin local complet
+              (<code>/home/...</code> ou <code>D:\...</code>).
             </div>
           </q-card-section>
         </q-card>
@@ -244,9 +266,11 @@ import client from "../api/client.js";
 const tplFile = ref(null);
 const xlsFile = ref(null);
 const photoFiles = ref(null);
+const photoFolderPath = ref("");
 const tplLoading = ref(false);
 const impLoading = ref(false);
 const photoLoading = ref(false);
+const folderLoading = ref(false);
 const uploadedPhotosCount = ref(0);
 const listLoading = ref(false);
 const pdfLoading = ref(false);
@@ -292,6 +316,10 @@ function photoPreviewUrl(photoLien) {
   if (!photoLien) return null;
   if (photoLien.startsWith("http://") || photoLien.startsWith("https://")) {
     return photoLien;
+  }
+  // Chemins absolus locaux (ex. D:\... ou /home/...) : non affichables dans le navigateur
+  if (/^[a-zA-Z]:[\\/]/.test(photoLien) || photoLien.startsWith("/home/")) {
+    return null;
   }
   return photoLien.startsWith("/") ? photoLien : `/${photoLien}`;
 }
@@ -340,6 +368,31 @@ async function uploadPhotos() {
     });
   } finally {
     photoLoading.value = false;
+  }
+}
+
+async function importPhotosFromFolder() {
+  const folderPath = photoFolderPath.value?.trim();
+  if (!folderPath) return;
+  folderLoading.value = true;
+  try {
+    const { data } = await client.post("/api/photos/import-folder", {
+      folderPath,
+    });
+    uploadedPhotosCount.value += data.uploaded;
+    const skippedMsg =
+      data.skipped > 0 ? `, ${data.skipped} déjà présente(s)` : "";
+    Notify.create({
+      type: "positive",
+      message: `${data.uploaded} photo(s) importée(s) depuis le dossier${skippedMsg}`,
+    });
+  } catch (e) {
+    Notify.create({
+      type: "negative",
+      message: e.response?.data?.error || e.message,
+    });
+  } finally {
+    folderLoading.value = false;
   }
 }
 

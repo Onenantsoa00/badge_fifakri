@@ -88,7 +88,7 @@ membresRouter.post(
         if (r.photo_lien && !photoLien) {
           errors.push({
             line,
-            error: `Photo introuvable : "${r.photo_lien}". Uploadez d'abord les images (étape Photos), puis mettez le nom du fichier dans Excel.`,
+            error: `Photo introuvable : "${r.photo_lien}". Uploadez les images (étape Photos), importez le dossier, ou vérifiez le chemin (ex. D:\\dossier\\12.jpg ou 12.jpg).`,
           });
         }
 

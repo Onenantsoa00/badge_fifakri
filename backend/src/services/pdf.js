@@ -1,6 +1,12 @@
 import fs from "fs";
 import path from "path";
-import { getUploadRoot, resolvePhotoLien } from "./photos.js";
+import {
+  crossPlatformBasename,
+  getUploadRoot,
+  isCrossPlatformAbsolute,
+  resolvePhotoLien,
+  toNativeFsPath,
+} from "./photos.js";
 import {
   PDFDocument,
   StandardFonts,
@@ -104,22 +110,31 @@ async function loadImageBytes(photoLien) {
   }
 
   const uploadRoot = getUploadRoot();
+  const basename = crossPlatformBasename(resolved);
   const candidates = [];
-  if (path.isAbsolute(resolved)) candidates.push(resolved);
+  if (path.isAbsolute(resolved) || isCrossPlatformAbsolute(resolved)) {
+    candidates.push(resolved, toNativeFsPath(resolved));
+  }
   candidates.push(path.resolve(resolved));
   candidates.push(path.resolve(process.cwd(), "backend", resolved));
-  if (resolved.startsWith("uploads/")) {
-    candidates.push(path.join(uploadRoot, resolved.replace(/^uploads\//, "")));
+  if (resolved.replace(/\\/g, "/").startsWith("uploads/")) {
+    candidates.push(path.join(uploadRoot, resolved.replace(/^uploads[/\\]/, "")));
   } else {
-    candidates.push(path.join(uploadRoot, "photos", path.basename(resolved)));
+    candidates.push(path.join(uploadRoot, "photos", basename));
   }
   candidates.push(path.join(uploadRoot, resolved));
 
+  const tried = new Set();
   for (const c of candidates) {
-    try {
-      if (c && fs.existsSync(c)) return fs.readFileSync(c);
-    } catch {
-      // ignore and try next
+    const variants = [c, toNativeFsPath(c)];
+    for (const variant of variants) {
+      if (!variant || tried.has(variant)) continue;
+      tried.add(variant);
+      try {
+        if (fs.existsSync(variant)) return fs.readFileSync(variant);
+      } catch {
+        // ignore and try next
+      }
     }
   }
 
