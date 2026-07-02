@@ -62,33 +62,43 @@
               {{ uploadedPhotosCount }} photo(s) disponible(s) sur le serveur.
             </div>
             <q-separator class="q-my-sm" />
-            <div class="text-caption text-grey-8 q-mb-xs">
-              Ou importer depuis un dossier local (Windows / Linux) :
-            </div>
-            <q-input
-              v-model="photoFolderPath"
-              label="Chemin du dossier photos"
-              placeholder="D:\badge_fifakri\sary ou /home/user/photos"
-              outlined
+            <q-banner
+              v-if="!isLocalBackend"
               dense
-              hint="Copie toutes les images du dossier vers le serveur"
-            />
-            <q-btn
-              class="q-mt-sm"
-              outline
-              color="primary"
-              label="Importer depuis le dossier"
-              :disable="!photoFolderPath?.trim()"
-              :loading="folderLoading"
-              @click="importPhotosFromFolder"
-            />
+              rounded
+              class="bg-amber-1 text-grey-9 q-mb-sm"
+            >
+              En production (Render), le serveur ne peut pas lire
+              <code>D:\...</code> sur votre PC. Utilisez le sélecteur de fichiers
+              ci-dessus pour envoyer les photos.
+            </q-banner>
+            <div v-if="isLocalBackend" class="text-caption text-grey-8 q-mb-xs">
+              Ou importer depuis un dossier local (backend lancé sur ce PC) :
+            </div>
+            <template v-if="isLocalBackend">
+              <q-input
+                v-model="photoFolderPath"
+                label="Chemin du dossier photos"
+                placeholder="D:\badge_fifakri\sary ou /home/user/photos"
+                outlined
+                dense
+                hint="Copie toutes les images du dossier vers le serveur"
+              />
+              <q-btn
+                class="q-mt-sm"
+                outline
+                color="primary"
+                label="Importer depuis le dossier"
+                :disable="!photoFolderPath?.trim()"
+                :loading="folderLoading"
+                @click="importPhotosFromFolder"
+              />
+            </template>
             <div class="text-caption q-mt-sm text-grey-7">
               <strong>Étape obligatoire en production.</strong> Uploadez d'abord
-              les photos ici (fichiers ou dossier). Dans Excel, colonne
+              les photos via le sélecteur de fichiers. Dans Excel, colonne
               <strong>Photo</strong> : mettez le <strong>nom du fichier</strong>
-              (ex. <code>12.jpeg</code>), le chemin serveur
-              <code>uploads/photos/12.jpeg</code>, ou le chemin local complet
-              (<code>/home/...</code> ou <code>D:\...</code>).
+              (ex. <code>12.jpeg</code>) ou <code>uploads/photos/12.jpeg</code>.
             </div>
           </q-card-section>
         </q-card>
@@ -281,6 +291,12 @@ const styleId = ref(null);
 
 const styleOptions = computed(() => styles.value);
 
+const isLocalBackend = computed(() => {
+  const base = import.meta.env.VITE_API_URL || "";
+  if (!base) return true;
+  return /localhost|127\.0\.0\.1/i.test(base);
+});
+
 const columns = [
   { name: "nom", label: "Nom", field: "nom", align: "left" },
   { name: "prenoms", label: "Prénoms", field: "prenoms", align: "left" },
@@ -387,10 +403,13 @@ async function importPhotosFromFolder() {
       message: `${data.uploaded} photo(s) importée(s) depuis le dossier${skippedMsg}`,
     });
   } catch (e) {
-    Notify.create({
-      type: "negative",
-      message: e.response?.data?.error || e.message,
-    });
+    const status = e.response?.status;
+    let message = e.response?.data?.error || e.message;
+    if (status === 404) {
+      message =
+        "Fonction non disponible sur ce serveur. Lancez le backend en local ou utilisez le sélecteur de fichiers.";
+    }
+    Notify.create({ type: "negative", message });
   } finally {
     folderLoading.value = false;
   }
