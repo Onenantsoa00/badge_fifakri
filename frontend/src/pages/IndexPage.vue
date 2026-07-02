@@ -95,10 +95,11 @@
               />
             </template>
             <div class="text-caption q-mt-sm text-grey-7">
-              <strong>Étape obligatoire en production.</strong> Uploadez d'abord
-              les photos via le sélecteur de fichiers. Dans Excel, colonne
-              <strong>Photo</strong> : mettez le <strong>nom du fichier</strong>
-              (ex. <code>12.jpeg</code>) ou <code>uploads/photos/12.jpeg</code>.
+              <strong>Étape obligatoire.</strong> Envoyez d'abord toutes les photos,
+              puis importez l'Excel. La colonne <strong>Photo</strong> accepte le
+              nom du fichier (<code>12.jpg</code>) ou un chemin Windows
+              (<code>D:\dossier\12.jpg</code>) — la correspondance se fait
+              automatiquement sur le nom du fichier.
             </div>
           </q-card-section>
         </q-card>
@@ -142,7 +143,7 @@
               Colonnes attendues : <strong>Nom</strong>,
               <strong>Prénoms</strong>, <strong>Eglizy</strong>,
               <strong>Tokim-panompoana</strong>, optionnellement Distrika,
-              Matricule (manuel), Photo (nom du fichier uploadé).
+              Matricule (manuel), Photo (nom du fichier, ex. <code>12.jpg</code>).
             </div>
           </q-card-section>
         </q-card>

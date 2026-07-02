@@ -20,6 +20,31 @@ export function crossPlatformBasename(p) {
   return idx >= 0 ? s.slice(idx + 1) : s;
 }
 
+/**
+ * Normalise une référence photo (Excel, hyperlien, chemin Windows/Unix) vers un nom de fichier.
+ * Ex. D:\photos\12.jpg → 12.jpg, file:///C:/photos/12.jpg → 12.jpg
+ */
+export function normalizePhotoReference(raw) {
+  if (raw == null || raw === "") return null;
+  let s = String(raw).trim();
+  if (!s) return null;
+
+  s = s.replace(/\u00a0/g, " ").replace(/^["']|["']$/g, "").trim();
+
+  if (/^file:/i.test(s)) {
+    try {
+      const url = new URL(s);
+      s = decodeURIComponent(url.pathname);
+      if (/^\/[a-zA-Z]:\//.test(s)) s = s.slice(1);
+    } catch {
+      s = decodeURIComponent(s.replace(/^file:\/\/\/?/i, ""));
+    }
+  }
+
+  const basename = crossPlatformBasename(s);
+  return basename || null;
+}
+
 /** Détecte un chemin absolu local (Unix ou lecteur Windows D:\ / D:/). */
 export function isCrossPlatformAbsolute(p) {
   const s = String(p || "").trim();
@@ -96,13 +121,13 @@ function copyLocalPhotoToUploads(sourcePath) {
  */
 export function resolvePhotoLien(photoLien, { copyToUploads = true } = {}) {
   if (!photoLien) return null;
-  const s = String(photoLien).trim();
-  if (!s) return null;
+  const raw = String(photoLien).trim();
+  if (!raw) return null;
 
-  if (s.startsWith("http://") || s.startsWith("https://")) return s;
+  if (raw.startsWith("http://") || raw.startsWith("https://")) return raw;
 
   const uploadRoot = getUploadRoot();
-  const normalized = s.replace(/\\/g, "/");
+  const normalized = raw.replace(/\\/g, "/");
 
   if (normalized.startsWith("uploads/photos/")) {
     const rel = normalized.replace(/^uploads\//, "");
@@ -110,23 +135,25 @@ export function resolvePhotoLien(photoLien, { copyToUploads = true } = {}) {
     if (fs.existsSync(full)) return normalized;
   }
 
-  const basename = crossPlatformBasename(s);
-  const uploaded = findUploadedPhoto(basename);
-  if (uploaded) return uploaded;
+  const basename = normalizePhotoReference(raw) || crossPlatformBasename(raw);
+  if (basename) {
+    const uploaded = findUploadedPhoto(basename);
+    if (uploaded) return uploaded;
+  }
 
-  if (isCrossPlatformAbsolute(s)) {
-    const existing = findExistingPath([s]);
+  if (isCrossPlatformAbsolute(raw)) {
+    const existing = findExistingPath([raw]);
     if (existing) {
       return copyToUploads ? copyLocalPhotoToUploads(existing) : existing;
     }
   }
 
   const relativeCandidates = [
-    s,
-    path.resolve(s),
-    path.resolve(process.cwd(), s),
-    path.resolve(process.cwd(), "backend", s),
-    path.join(uploadRoot, s),
+    raw,
+    path.resolve(raw),
+    path.resolve(process.cwd(), raw),
+    path.resolve(process.cwd(), "backend", raw),
+    path.join(uploadRoot, raw),
     path.join(uploadRoot, "photos", basename),
   ];
   const existingRelative = findExistingPath(relativeCandidates);

@@ -1,4 +1,5 @@
 import xlsx from "xlsx";
+import { normalizePhotoReference } from "./photos.js";
 
 const HEADER_ALIASES = {
   nom: ["nom", "name"],
@@ -30,6 +31,19 @@ function mapHeader(cell) {
     if (aliases.some((a) => h === norm(a))) return key;
   }
   return null;
+}
+
+function getCellValue(sheet, row, col) {
+  const addr = xlsx.utils.encode_cell({ r: row, c: col });
+  const cell = sheet[addr];
+  if (!cell) return "";
+
+  // Hyperlien Excel (souvent utilisé sous Windows pour lier une photo locale)
+  const hyperlink = cell.l?.Target || cell.h?.Target;
+  if (hyperlink) return String(hyperlink).trim();
+
+  const value = cell.v ?? cell.w ?? "";
+  return value == null ? "" : value;
 }
 
 /**
@@ -67,6 +81,7 @@ export function parseMembresExcel(buffer) {
     const get = (k) => {
       const idx = colMap[k];
       if (idx === undefined) return "";
+      if (k === "photo") return getCellValue(sheet, r, idx);
       return line[idx];
     };
 
@@ -91,7 +106,7 @@ export function parseMembresExcel(buffer) {
       eglizy: String(get("eglizy") || "").trim(),
       tokim_panompoana: tokim,
       matricule_manual: String(get("matricule") || "").trim() || null,
-      photo_lien: String(get("photo") || "").trim() || null,
+      photo_lien: normalizePhotoReference(get("photo")),
     });
   }
 
